@@ -4,6 +4,7 @@ import tqdm
 import numpy as np
 from scipy.stats import sem
 import scipy.stats as stats
+from pytorchtools import EarlyStopping
 
 from SegmentationDataset import SegmentationDataset
 
@@ -98,8 +99,8 @@ def val_model(model:torch.nn.Module, device, loss_function, val_datasetloader):
         correct = correct.data.item()
         acc = correct / total_num
         avgloss = test_loss / len(val_datasetloader)
-        print('\nVal set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
-            avgloss, correct, total_num, 100 * acc))
+        # print('\nVal set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
+        #     avgloss, correct, total_num, 100 * acc))
     
     return avgloss, correct, acc
 
@@ -127,11 +128,12 @@ def compute_acc_fgt(end_task_acc_arr):
 
 if __name__ == "__main__":
     data_path = "F:\Hyperspecial\pear_processed\life_long_dataset"
-    run_times = 10
+    run_times = 5
     batch_size = 4
     learn_rate = 0.0001
     basic_task_index = 0
-    epoch_num = 5
+    epoch_num = 100
+    patience = 10
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -141,6 +143,7 @@ if __name__ == "__main__":
     accuracy_list3 = []
     accuracy_list4 = []
     fun_score = np.zeros((run_times, 4))
+    trained_model_path = 'log/segment_model.pth'
 
     for time in range(run_times):
         print("Start {} times experiences".format(time+1))
@@ -157,26 +160,31 @@ if __name__ == "__main__":
         test_dataloader = test_stream[basic_task_index]
 
         acc_array1 = np.zeros((4, 2))
+        early_stopping = EarlyStopping(patience=patience, verbose=True, path=trained_model_path)
+
+        model.load_state_dict(torch.load("log\segment_model_pretrain.pth"))
         for epoch in range(epoch_num):
             train_model(model, loss_function,optimizer, device, epoch_num,epoch, train_dataloader)
+            avgloss, _, segment_acc = val_model(model, device, loss_function, test_dataloader)
+            early_stopping(avgloss, segment_acc, model)
+            if early_stopping.early_stop:
+                print("Early stopping")
+                break
 
-        val_avgloss, correct, acc = val_model(model, device, loss_function, test_dataloader)
-        
-        basic_loss = val_avgloss
+        basic_loss = early_stopping.val_loss_min
         print("basic loss:{:.4}".format(basic_loss))
+        acc_array1[:,0] = early_stopping.acc
 
         # pop the src data from train_stream and test_stream
         train_stream.pop(basic_task_index)
         test_stream.pop(basic_task_index)
 
-        acc_array1[:,0] = acc
-
         for i, probe_data in enumerate(test_stream):
             with torch.no_grad():
                 _, _, acc_array1[i,1] = val_model(model, device, loss_function, probe_data)
 
-        trained_model_path = 'log/segment_model.pth'
-        torch.save(model.state_dict(), trained_model_path)
+        # trained_model_path = 'log/segment_model.pth'
+        # torch.save(model.state_dict(), trained_model_path)
 
         del model
         del train_dataloader
@@ -194,18 +202,29 @@ if __name__ == "__main__":
 
             trained_model.to(device)
 
-            for data, target in probe_data:
-                x_train, y_train = data.to(device), target.to(device)
+            for k, one_batch in enumerate(probe_data):
+                x_train, y_train = one_batch[0].to(device), one_batch[1].to(device)
                 y_pred = trained_model(x_train)["out"]
                 loss = loss_function(y_pred, y_train)
                 # calculate the functional similarity (fun_score) at last steps
-                print("loss value: ", loss.data.item())
-                fun_score[time, j] = (1 - (loss.data.item() / basic_loss))
-                break
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
+                if k==1:
+                    print("loss value: ", loss.data.item())
+                    fun_score[time, j] = (1 - (loss.data.item() / basic_loss))
+                    break
 
+            early_stopping = EarlyStopping(patience=patience, verbose=True)
             for epoch in range(epoch_num):
-                train_model(trained_model, loss_function,optimizer, device, epoch_num,epoch, probe_data)
-            
+                train_model(trained_model, loss_function,optimizer, device, epoch_num, epoch, probe_data)
+                avgloss, _, segment_acc = val_model(trained_model, device, loss_function, test_stream[j])
+                early_stopping(avgloss, segment_acc, trained_model)
+                if early_stopping.early_stop:
+                    print("Early stopping")
+                    break
+            trained_model.load_state_dict(torch.load("checkpoint.pt"))
+
             _, _, acc_array2[j,0] = val_model(trained_model, device, loss_function, test_dataloader)
             _, _, acc_array2[j,1] = val_model(trained_model, device, loss_function, test_stream[j])
         
@@ -233,15 +252,14 @@ if __name__ == "__main__":
         accuracy_array4 = np.array(accuracy_list4)
 
         avg_end_acc, avg_end_fgt, avg_acc = compute_acc_fgt(accuracy_array1)
-        print('----------- Avg_End_Acc {} Avg_End_Fgt {} Avg_Acc {}-----------'.format(avg_end_acc, avg_end_fgt, avg_acc))
-        print('----------- Avg_End_Acc {} Avg_End_Fgt {} Avg_Acc {}-----------'.format(avg_end_acc, avg_end_fgt, avg_acc), file=log_file)
+        print('--Task 1------ Avg_End_Acc {} Avg_End_Fgt {} Avg_Acc {}-----------'.format(avg_end_acc, avg_end_fgt, avg_acc))
+        print('--Task 1--- Avg_End_Acc {} Avg_End_Fgt {} Avg_Acc {}-----------'.format(avg_end_acc, avg_end_fgt, avg_acc), file=log_file)
         avg_end_acc, avg_end_fgt, avg_acc = compute_acc_fgt(accuracy_array2)
-        print('----------- Avg_End_Acc {} Avg_End_Fgt {} Avg_Acc {}-----------'.format(avg_end_acc, avg_end_fgt, avg_acc))
-        print('----------- Avg_End_Acc {} Avg_End_Fgt {} Avg_Acc {}-----------'.format(avg_end_acc, avg_end_fgt, avg_acc), file=log_file)
+        print('--Task 2--- Avg_End_Acc {} Avg_End_Fgt {} Avg_Acc {}-----------'.format(avg_end_acc, avg_end_fgt, avg_acc))
+        print('--Task 2--- Avg_End_Acc {} Avg_End_Fgt {} Avg_Acc {}-----------'.format(avg_end_acc, avg_end_fgt, avg_acc), file=log_file)
         avg_end_acc, avg_end_fgt, avg_acc = compute_acc_fgt(accuracy_array3)
-        print('----------- Avg_End_Acc {} Avg_End_Fgt {} Avg_Acc {}-----------'.format(avg_end_acc, avg_end_fgt, avg_acc))
-        print('----------- Avg_End_Acc {} Avg_End_Fgt {} Avg_Acc {}-----------'.format(avg_end_acc, avg_end_fgt, avg_acc), file=log_file)
+        print('--Task 3--- Avg_End_Acc {} Avg_End_Fgt {} Avg_Acc {}-----------'.format(avg_end_acc, avg_end_fgt, avg_acc))
+        print('--Task 3--- Avg_End_Acc {} Avg_End_Fgt {} Avg_Acc {}-----------'.format(avg_end_acc, avg_end_fgt, avg_acc), file=log_file)
         avg_end_acc, avg_end_fgt, avg_acc = compute_acc_fgt(accuracy_array4)
-        print('----------- Avg_End_Acc {} Avg_End_Fgt {} Avg_Acc {}-----------'.format(avg_end_acc, avg_end_fgt, avg_acc))
-        print('----------- Avg_End_Acc {} Avg_End_Fgt {} Avg_Acc {}-----------'.format(avg_end_acc, avg_end_fgt, avg_acc), file=log_file)
-
+        print('--Task 4--- Avg_End_Acc {} Avg_End_Fgt {} Avg_Acc {}-----------'.format(avg_end_acc, avg_end_fgt, avg_acc))
+        print('--Task 4--- Avg_End_Acc {} Avg_End_Fgt {} Avg_Acc {}-----------'.format(avg_end_acc, avg_end_fgt, avg_acc), file=log_file)
