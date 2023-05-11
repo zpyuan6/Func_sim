@@ -1,9 +1,9 @@
-data_path: "F:\\Hyperspecial\\pear_processed\\life_long_dataset"
-run_times: 5
+data_path: "F:\\Hyperspecial\\pear_processed\\hyperspecial_life_long_dataset"
+run_times: 3
 batch_size: 4
 learn_rate: 0.0001
 basic_task_index: 0
 epoch_num: 200
 patience: 10
 pretrained_model_path: "log\\segment_model_pretrain.pth"
-basic_model_save_path: ""
+basic_model_save_path: "log\\basic_segment_model.pt"
