@@ -5,6 +5,7 @@ import numpy as np
 from scipy.stats import sem
 import scipy.stats as stats
 from pytorchtools import EarlyStopping
+import yaml
 
 from SegmentationDataset import SegmentationDataset
 
@@ -38,10 +39,10 @@ def load_dataset(whole_dataset_path, batch_size):
             index_training = random.sample(range(1,num_of_samples), int(0.9*num_of_samples))
 
             train_dataset = data_utils.Subset(dataset, index_training)
-            train_dataloader = data_utils.DataLoader(train_dataset, shuffle=True, batch_size=batch_size, num_workers=6)
+            train_dataloader = data_utils.DataLoader(train_dataset, shuffle=True, batch_size=batch_size, num_workers=6, pin_memory = True, prefetch_factor=batch_size*2)
 
             test_dataset = data_utils.Subset(dataset, list(set(range(1,num_of_samples)).difference(set(index_training))))
-            test_dataloader = data_utils.DataLoader(test_dataset, shuffle=False, batch_size=batch_size, num_workers=6)
+            test_dataloader = data_utils.DataLoader(test_dataset, shuffle=False, batch_size=batch_size, num_workers=6, pin_memory = True, prefetch_factor=batch_size*2)
 
             train_stream.append(train_dataloader)
             test_stream.append(test_dataloader)
@@ -126,14 +127,26 @@ def compute_acc_fgt(end_task_acc_arr):
     return avg_end_acc, avg_end_fgt, avg_acc
 
 
+def load_parameter_from_yaml(yaml_path):
+    with open(yaml_path,'r', encoding='utf-8') as parameter_file:
+        args = yaml.load(parameter_file, Loader=yaml.FullLoader)
+
+    print("Load parameters: ", args)
+    return args
+
+
 if __name__ == "__main__":
-    data_path = "F:\Hyperspecial\pear_processed\life_long_dataset"
-    run_times = 5
-    batch_size = 4
-    learn_rate = 0.0001
-    basic_task_index = 0
-    epoch_num = 100
-    patience = 10
+
+    args = load_parameter_from_yaml("experiments.yaml")
+    data_path = args["data_path"]
+    run_times = args["run_times"]
+    batch_size = args["batch_size"]
+    learn_rate = args["learn_rate"]
+    basic_task_index = args["basic_task_index"]
+    epoch_num = args["epoch_num"]
+    patience = args["patience"]
+    pretrained_model_path = args["pretrained_model_path"]
+    basic_model_save_path = args["basic_model_save_path"]
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -143,7 +156,6 @@ if __name__ == "__main__":
     accuracy_list3 = []
     accuracy_list4 = []
     fun_score = np.zeros((run_times, 4))
-    trained_model_path = 'log/segment_model.pth'
 
     for time in range(run_times):
         print("Start {} times experiences".format(time+1))
@@ -160,9 +172,9 @@ if __name__ == "__main__":
         test_dataloader = test_stream[basic_task_index]
 
         acc_array1 = np.zeros((4, 2))
-        early_stopping = EarlyStopping(patience=patience, verbose=True, path=trained_model_path)
+        early_stopping = EarlyStopping(patience=patience, verbose=True, path=basic_model_save_path)
 
-        model.load_state_dict(torch.load("log\segment_model_pretrain.pth"))
+        model.load_state_dict(torch.load(pretrained_model_path))
         for epoch in range(epoch_num):
             train_model(model, loss_function,optimizer, device, epoch_num,epoch, train_dataloader)
             avgloss, _, segment_acc = val_model(model, device, loss_function, test_dataloader)
@@ -183,9 +195,6 @@ if __name__ == "__main__":
             with torch.no_grad():
                 _, _, acc_array1[i,1] = val_model(model, device, loss_function, probe_data)
 
-        # trained_model_path = 'log/segment_model.pth'
-        # torch.save(model.state_dict(), trained_model_path)
-
         del model
         del train_dataloader
 
@@ -196,7 +205,7 @@ if __name__ == "__main__":
             print("task {} starting...".format(j))
 
             trained_model = load_model()
-            trained_model.load_state_dict(torch.load(trained_model_path))
+            trained_model.load_state_dict(torch.load(basic_model_save_path))
 
             optimizer = torch.optim.AdamW(trained_model.parameters(),learn_rate)
 
