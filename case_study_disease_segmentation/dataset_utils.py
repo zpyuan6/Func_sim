@@ -27,8 +27,8 @@ def split_task_dataset(source_dataset, target_path):
 
 if __name__ == "__main__":
     
-    original_dataset_path = "F:\Hyperspecial\pear_processed\segmentation_data"
-    life_long_dataset_path = "F:\Hyperspecial\pear_processed\life_long_dataset"
+    original_dataset_path = "F:\Hyperspecial\pear_processed\segmentation_data_unoverlap"
+    life_long_dataset_path = "F:\Hyperspecial\pear_processed\hyperspecial_life_long_dataset_unoverlap"
 
     split_task_dataset(original_dataset_path, life_long_dataset_path)
 

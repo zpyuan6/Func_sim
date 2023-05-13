@@ -6,6 +6,7 @@ from scipy.stats import sem
 import scipy.stats as stats
 from pytorchtools import EarlyStopping
 import yaml
+import wandb
 
 from SegmentationDataset import SegmentationDataset
 
@@ -149,6 +150,11 @@ if __name__ == "__main__":
     basic_model_save_path = args["basic_model_save_path"]
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    wandb.init(
+        project="lifelong-hyperspecial",
+        config=args
+    )
 
     # record for multiple run
     accuracy_list1 = [] 
