@@ -23,17 +23,19 @@ class EarlyStopping:
         self.best_score = None
         self.early_stop = False
         self.val_loss_min = np.Inf
+        self.training_loss = None
         self.acc = 0
         self.delta = delta
         self.path = path
         self.trace_func = trace_func
-    def __call__(self, val_loss, acc, model):
-
+    def __call__(self, val_loss, acc, model, training_loss=None):
         score = -val_loss
 
         if self.best_score is None:
             self.best_score = score
             self.save_checkpoint(val_loss, acc, model)
+            if training_loss!=None:
+                self.training_loss = training_loss
         elif score < self.best_score + self.delta:
             self.counter += 1
             self.trace_func(f'EarlyStopping counter: {self.counter} out of {self.patience}')
@@ -43,6 +45,8 @@ class EarlyStopping:
             self.best_score = score
             self.save_checkpoint(val_loss, acc, model)
             self.counter = 0
+            if training_loss!=None:
+                self.training_loss = training_loss
 
     def save_checkpoint(self, val_loss, acc, model):
         '''Saves model when validation loss decrease.'''

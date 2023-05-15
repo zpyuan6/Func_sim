@@ -184,12 +184,12 @@ if __name__ == "__main__":
         for epoch in range(epoch_num):
             training_loss = train_model(model, loss_function, optimizer, device, epoch_num,epoch, train_dataloader)
             avgloss, _, segment_acc = val_model(model, device, loss_function, test_dataloader)
-            early_stopping(avgloss, segment_acc, model)
+            early_stopping(avgloss, segment_acc, model, training_loss)
             if early_stopping.early_stop:
                 print("Early stopping")
                 break
 
-        basic_loss = training_loss
+        basic_loss = early_stopping.training_loss
         print("basic loss:{:.4}".format(basic_loss))
         acc_array1[:,0] = early_stopping.acc
 
@@ -225,7 +225,7 @@ if __name__ == "__main__":
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
-                if k==1:
+                if k==0:
                     print("loss value: ", loss.data.item())
                     fun_score[time, j] = (1 - (loss.data.item() / basic_loss)) 
                     break
