@@ -1,4 +1,4 @@
-data_path: "F:\\Hyperspecial\\pear_processed\\hyperspecial_life_long_dataset"
+data_path: "F:\\Hyperspecial\\pear_processed\\hyperspecial_life_long_dataset_unoverlap"
 run_times: 3
 batch_size: 4
 learn_rate: 0.0001
