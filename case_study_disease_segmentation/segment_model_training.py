@@ -181,11 +181,12 @@ if __name__ == "__main__":
         acc_array1 = np.zeros((4, 2))
         early_stopping = EarlyStopping(patience=patience, verbose=True, path=basic_model_save_path)
 
-        model.load_state_dict(torch.load(pretrained_model_path))
+        # model.load_state_dict(torch.load(pretrained_model_path))
         for epoch in range(epoch_num):
             training_loss = train_model(model, loss_function, optimizer, device, epoch_num,epoch, train_dataloader)
             avgloss, _, segment_acc = val_model(model, device, loss_function, test_dataloader)
             early_stopping(avgloss, segment_acc, model, training_loss)
+            wandb.log({f'training loss init model_{time}': training_loss, 'val loss init model_{time}': avgloss, 'val acc model_{time}':segment_acc, 'epoch':epoch})
             if early_stopping.early_stop:
                 print("Early stopping")
                 break
