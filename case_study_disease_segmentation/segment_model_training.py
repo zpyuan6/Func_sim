@@ -255,8 +255,21 @@ if __name__ == "__main__":
         accuracy_list3.append([acc_array1[2, :], acc_array2[2, :]])
         accuracy_list4.append([acc_array1[3, :], acc_array2[3, :]])
 
-        print(fun_score[time, :])
-
+        with open("log.txt",'a') as log_file_each:
+            print(f"===========start num times {time}============================")
+            print(f"func_score: ", fun_score[time, :])
+            print(f"basic model acc: ", acc_array1[:,0])
+            print(f"average acc: ", (acc_array2[:,0]+acc_array2[:,1])/2 )
+            print(f"fgt: ", acc_array1[:,0]-acc_array2[:,0])
+            print("Original data", acc_array1, acc_array2)
+            print(f"===========end num times {time}==============================")
+            print(f"===========start num times {time}============================", file=log_file_each)
+            print(f"func_score: ", fun_score[time, :], file=log_file_each)
+            print(f"basic model acc: ", acc_array1[:,0], file=log_file_each)
+            print(f"average acc: ", (acc_array2[:,0]+acc_array2[:,1])/2 , file=log_file_each)
+            print(f"fgt: ", acc_array1[:,0]-acc_array2[:,0], file=log_file_each)
+            print("Original data", acc_array1, acc_array2, file=log_file_each)
+            print(f"===========end num times {time}==============================", file=log_file_each)
         del trained_model
 
     with open("log/log.txt",'wt') as log_file:
